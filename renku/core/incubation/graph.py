@@ -44,13 +44,13 @@ from renku.core.utils.migrate import read_project_version_from_yaml
 from renku.core.utils.scm import git_unicode_unescape
 
 GRAPH_METADATA_PATHS = [
-    Path(RENKU_HOME) / Path(RepositoryApiMixin.DEPENDENCY_GRAPH),
-    Path(RENKU_HOME) / Path(RepositoryApiMixin.PROVENANCE_GRAPH),
-    Path(RENKU_HOME) / Path(DatasetsApiMixin.DATASETS_PROVENANCE),
+    Path(RENKU_HOME) / DatasetsApiMixin.DATASETS_PROVENANCE,
+    Path(RENKU_HOME) / RepositoryApiMixin.DEPENDENCY_GRAPH,
+    Path(RENKU_HOME) / RepositoryApiMixin.PROVENANCE_GRAPH,
 ]
 
 
-def _generate_graph(client, force):
+def _generate_graph(client, force=False):
     """Generate graph metadata."""
 
     def create_empty_graph_files():
@@ -196,19 +196,25 @@ def update():
     return command.require_migration().with_commit(commit_if_empty=False).require_clean()
 
 
-def _export_graph(client, format, dataset):
+def _export_graph(client, format, dataset, paths=None):
     """Output graph in specific format."""
     if not client.provenance_graph_path.exists():
         raise errors.ParameterError("Graph is not generated.")
 
-    pg = ProvenanceGraph.from_json(client.provenance_graph_path, lazy=True)
+    lazy = not bool(paths)
+    pg = ProvenanceGraph.from_json(client.provenance_graph_path, lazy=lazy)
 
     if dataset:
         if not client.datasets_provenance_path.exists():
             raise errors.ParameterError("Dataset provenance is not generated.")
         pg.rdf_graph.parse(location=str(client.datasets_provenance_path), format="json-ld")
 
-    return format(pg.rdf_graph)
+    if not paths:
+        return format(pg.rdf_graph)
+
+    graph = pg.get_subgraph(paths=paths)
+
+    return format(graph)
 
 
 def export_graph():

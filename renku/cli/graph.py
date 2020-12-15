@@ -41,9 +41,8 @@ def graph():
 @click.option("-f", "--force", is_flag=True, help="Delete existing metadata and regenerate all.")
 def generate(force):
     """Create new graph metadata."""
-
     communicator = ClickCallback()
-    (generate_graph().with_communicator(communicator).build().execute(force=force))
+    generate_graph().with_communicator(communicator).build().execute(force=force)
 
     click.secho("\nOK", fg="green")
 
@@ -52,7 +51,6 @@ def generate(force):
 @click.pass_context
 def status(ctx):
     r"""Equivalent of `renku status`."""
-
     communicator = ClickCallback()
     result = get_status().with_communicator(communicator).build().execute()
 
@@ -104,7 +102,6 @@ def status(ctx):
 @click.option("-n", "--dry-run", is_flag=True, help="Show steps that will be updated without running them.")
 def update(dry_run):
     r"""Equivalent of `renku update`."""
-
     communicator = ClickCallback()
     perform_update().with_communicator(communicator).build().execute(dry_run=dry_run)
 
@@ -167,10 +164,13 @@ _FORMATS = {
 @graph.command()
 @click.option("--format", type=CaseInsensitiveChoice(_FORMATS), default="json-ld", help="Choose an output format.")
 @click.option("-d", "--dataset", is_flag=True, help="Include datasets.")
-def export(format, dataset):
+@click.argument("paths", type=click.Path(exists=False), nargs=-1)
+def export(format, dataset, paths):
     r"""Equivalent of `renku log --format json-ld`."""
     communicator = ClickCallback()
-    (export_graph().with_communicator(communicator).build().execute(format=_FORMATS[format], dataset=dataset))
+    export_graph().with_communicator(communicator).build().execute(
+        format=_FORMATS[format], dataset=dataset, paths=paths
+    )
 
 
 @graph.command()
@@ -178,6 +178,6 @@ def export(format, dataset):
 def generate_dataset(force):
     """Create new graph metadata for datasets."""
     communicator = ClickCallback()
-    (generate_datasets_provenance().with_communicator(communicator).build().execute(force=force))
+    generate_datasets_provenance().with_communicator(communicator).build().execute(force=force)
 
     click.secho("\nOK", fg="green")
