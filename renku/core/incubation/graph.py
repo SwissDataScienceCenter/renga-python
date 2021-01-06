@@ -47,6 +47,7 @@ GRAPH_METADATA_PATHS = [
     Path(RENKU_HOME) / DatasetsApiMixin.DATASETS_PROVENANCE,
     Path(RENKU_HOME) / RepositoryApiMixin.DEPENDENCY_GRAPH,
     Path(RENKU_HOME) / RepositoryApiMixin.PROVENANCE_GRAPH,
+    Path(RENKU_HOME) / RepositoryApiMixin.PROVENANCE,
 ]
 
 
@@ -57,6 +58,7 @@ def _generate_graph(client, force=False):
         # Create empty graph files as defaults
         client.dependency_graph_path.write_text("[]")
         client.provenance_graph_path.write_text("[]")
+        client.provenance_path.mkdir(parents=True, exist_ok=True)
 
     commits = list(client.repo.iter_commits(paths=f"{client.workflow_path}*.yaml"))
     n_commits = len(commits)
@@ -69,6 +71,10 @@ def _generate_graph(client, force=False):
             pass
         try:
             client.provenance_graph_path.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            shutil.rmtree(client.provenance_path)
         except FileNotFoundError:
             pass
     else:
@@ -97,6 +103,13 @@ def _generate_graph(client, force=False):
             activity_collection = ActivityCollection.from_activity_run(workflow, dependency_graph, client)
 
             provenance_graph.add(activity_collection)
+
+            # NOTE: we serialize activity_collection after adding it to the provenance graph so that its activities have
+            # their order set
+            new_path = client.provenance_path / f"{Path(path).stem}.json"
+            activity_collection.to_json(new_path)
+
+            assert provenance_graph.order == activity_collection.max_order
 
     dependency_graph.to_json()
     provenance_graph.to_json()
@@ -196,13 +209,18 @@ def update():
     return command.require_migration().with_commit(commit_if_empty=False).require_clean()
 
 
-def _export_graph(client, format, dataset, paths=None):
+def _export_graph(client, format, dataset, paths, revision):
     """Output graph in specific format."""
     if not client.provenance_graph_path.exists():
         raise errors.ParameterError("Graph is not generated.")
 
     lazy = not bool(paths)
-    pg = ProvenanceGraph.from_json(client.provenance_graph_path, lazy=lazy)
+
+    provenance_paths = client.get_provenance_paths(revision=revision)
+    if provenance_paths:
+        pg = ProvenanceGraph.from_provenance_paths(provenance_paths, lazy=lazy)
+    else:
+        pg = ProvenanceGraph.from_json(client.provenance_graph_path, lazy=lazy)
 
     if dataset:
         if not client.datasets_provenance_path.exists():

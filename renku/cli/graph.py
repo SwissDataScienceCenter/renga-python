@@ -165,11 +165,12 @@ _FORMATS = {
 @click.option("--format", type=CaseInsensitiveChoice(_FORMATS), default="json-ld", help="Choose an output format.")
 @click.option("-d", "--dataset", is_flag=True, help="Include datasets.")
 @click.argument("paths", type=click.Path(exists=False), nargs=-1)
-def export(format, dataset, paths):
+@click.option("--revision", default=None, help="The git revision to generate the graph for, default: HEAD")
+def export(format, dataset, paths, revision):
     r"""Equivalent of `renku log --format json-ld`."""
     communicator = ClickCallback()
     export_graph().with_communicator(communicator).build().execute(
-        format=_FORMATS[format], dataset=dataset, paths=paths
+        format=_FORMATS[format], dataset=dataset, paths=paths, revision=revision
     )
 
 

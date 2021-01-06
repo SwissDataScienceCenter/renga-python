@@ -76,3 +76,21 @@ def test_graph_export_with_directory_paths(runner, client):
 
     assert "my-data" not in result.output
     assert "my-new-data" in result.output
+
+
+def test_graph_export_with_revision(runner, client, directory_tree, run):
+    """Test graph export."""
+    assert 0 == runner.invoke(cli, ["dataset", "add", "-c", "my-data", str(directory_tree)]).exit_code
+    assert 0 == runner.invoke(cli, ["graph", "generate"]).exit_code
+    file1 = client.path / DATA_DIR / "my-data" / directory_tree.name / "file1"
+    file2 = client.path / DATA_DIR / "my-data" / directory_tree.name / "dir1" / "file2"
+    assert 0 == run(["run", "head", str(file1)], stdout="out1")
+    commit_sha = client.repo.head.object.hexsha
+    assert 0 == run(["run", "tail", str(file2)], stdout="out2")
+
+    result = runner.invoke(cli, ["graph", "export", "--revision", commit_sha])
+
+    assert "file1" in result.output
+    assert "out1" in result.output
+    assert "file2" not in result.output
+    assert "out2" not in result.output
