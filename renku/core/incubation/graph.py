@@ -22,13 +22,15 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict
 
+import git
 from git import NULL_TREE, GitCommandError
 
 from renku.core import errors
+from renku.core.commands.dataset import create_dataset_helper
 from renku.core.commands.update import execute_workflow
 from renku.core.incubation.command import Command
 from renku.core.management.config import RENKU_HOME
-from renku.core.management.datasets import DatasetsApiMixin
+from renku.core.management.datasets import DATASET_METADATA_PATHS, DatasetsApiMixin
 from renku.core.management.migrate import migrate
 from renku.core.management.repository import RepositoryApiMixin
 from renku.core.models.entities import Entity
@@ -48,6 +50,12 @@ GRAPH_METADATA_PATHS = [
     Path(RENKU_HOME) / Path(RepositoryApiMixin.PROVENANCE_GRAPH),
     Path(RENKU_HOME) / Path(DatasetsApiMixin.DATASETS_PROVENANCE),
 ]
+
+
+def generate_graph():
+    """Return a command for generating the graph."""
+    command = Command().command(_generate_graph).lock_project()
+    return command.require_migration().with_commit(commit_only=GRAPH_METADATA_PATHS)
 
 
 def _generate_graph(client, force):
@@ -73,7 +81,7 @@ def _generate_graph(client, force):
             pass
     else:
         if client.has_graph_files():
-            raise errors.OperationError("Graph files exist. Use ``--force`` to regenerate the graph.")
+            raise errors.OperationError("Graph files exist. Use `--force` to regenerate the graph.")
 
     create_empty_graph_files()
 
@@ -102,10 +110,9 @@ def _generate_graph(client, force):
     provenance_graph.to_json()
 
 
-def generate_graph():
-    """Return a command for generating the graph."""
-    command = Command().command(_generate_graph).lock_project()
-    return command.require_migration().with_commit(commit_only=GRAPH_METADATA_PATHS)
+def status():
+    """Return a command for getting workflow graph status."""
+    return Command().command(_status)
 
 
 def _status(client):
@@ -116,8 +123,8 @@ def _status(client):
 
     if client.has_external_files():
         communication.warn(
-            "Changes in external files are not detected automatically. To "
-            'update external files run "renku dataset update -e".'
+            "Changes in external files are not detected automatically. To update external files run "
+            "`renku dataset update -e`."
         )
 
     try:
@@ -145,9 +152,10 @@ def _status(client):
     return stales, modified, deleted
 
 
-def status():
-    """Return a command for getting workflow graph status."""
-    return Command().command(_status)
+def update():
+    """Return a command for generating the graph."""
+    command = Command().command(_update).lock_project()
+    return command.require_migration().with_commit(commit_if_empty=False).require_clean()
 
 
 def _update(client, dry_run):
@@ -190,10 +198,9 @@ def _update(client, dry_run):
     )
 
 
-def update():
-    """Return a command for generating the graph."""
-    command = Command().command(_update).lock_project()
-    return command.require_migration().with_commit(commit_if_empty=False).require_clean()
+def export_graph():
+    """Return a command for exporting graph data."""
+    return Command().command(_export_graph)
 
 
 def _export_graph(client, format, dataset):
@@ -209,11 +216,6 @@ def _export_graph(client, format, dataset):
         pg.rdf_graph.parse(location=str(client.datasets_provenance_path), format="json-ld")
 
     return format(pg.rdf_graph)
-
-
-def export_graph():
-    """Return a command for exporting graph data."""
-    return Command().command(_export_graph)
 
 
 def _get_modified_paths(client, plans_usages):
@@ -233,6 +235,12 @@ def _get_modified_paths(client, plans_usages):
     return modified, deleted
 
 
+def generate_datasets_provenance():
+    """Return a command for generating dataset provenance."""
+    command = Command().command(_generate_datasets_provenance).lock_project()
+    return command.require_migration().with_commit(commit_only=GRAPH_METADATA_PATHS)
+
+
 def _generate_datasets_provenance(client, force=False):
     """Generate datasets provenance metadata."""
     commits = list(client.repo.iter_commits(paths=".renku/datasets/*"))
@@ -245,8 +253,8 @@ def _generate_datasets_provenance(client, force=False):
         except FileNotFoundError:
             pass
     else:
-        if client.datasets_provenance_path.exists():
-            raise errors.OperationError("Dataset provenance file exists. Use ``--force`` to regenerate it.")
+        if client.has_datasets_provenance():
+            raise errors.OperationError("Dataset provenance file exists. Use `--force` to regenerate it.")
 
     # Create empty dataset provenance file
     client.datasets_provenance_path.write_text("[]")
@@ -341,7 +349,68 @@ def _fetch_datasets(client, revision, paths, deleted_paths):
     return datasets, deleted_datasets
 
 
-def generate_datasets_provenance():
-    """Return a command for generating dataset provenance."""
-    command = Command().command(_generate_datasets_provenance).lock_project()
-    return command.require_migration().with_commit(commit_only=GRAPH_METADATA_PATHS)
+def create_dataset():
+    """Return a command for creating an empty dataset in the current repo."""
+    command = Command().command(_create_dataset).lock_dataset()
+    return command.require_migration().with_commit(commit_only=DATASET_METADATA_PATHS)
+
+
+def _create_dataset(client, name, title=None, description="", creators=None, keywords=None):
+    """Create a dataset in the repository."""
+    if not client.has_datasets_provenance():
+        raise errors.OperationError("Dataset provenance is not generated. Run `renku graph generate-dataset`.")
+
+    return create_dataset_helper(
+        client=client, name=name, title=title, description=description, creators=creators, keywords=keywords
+    )
+
+
+def add_to_dataset():
+    """Return a command for adding data to a dataset."""
+    command = Command().command(_add_to_dataset).lock_dataset()
+    return command.require_migration().with_commit(raise_if_empty=True, commit_only=DATASET_METADATA_PATHS)
+
+
+def _add_to_dataset(
+    client,
+    urls,
+    name,
+    external=False,
+    force=False,
+    overwrite=False,
+    create=False,
+    sources=(),
+    destination="",
+    ref=None,
+):
+    """Add data to a dataset."""
+    if not client.has_datasets_provenance():
+        raise errors.OperationError("Dataset provenance is not generated. Run `renku graph generate-dataset`.")
+
+    if len(urls) == 0:
+        raise errors.UsageError("No URL is specified")
+    if sources and len(urls) > 1:
+        raise errors.UsageError("Cannot use `--source` with multiple URLs.")
+
+    try:
+        with client.with_dataset_provenance(name=name, create=create) as dataset:
+            client.add_data_to_dataset(
+                dataset,
+                urls=urls,
+                external=external,
+                force=force,
+                overwrite=overwrite,
+                sources=sources,
+                destination=destination,
+                ref=ref,
+            )
+
+        client.update_datasets_provenance(dataset)
+    except errors.DatasetNotFound:
+        raise errors.DatasetNotFound(
+            message=f"Dataset `{name}` does not exist.\nUse `renku dataset create {name}` to create the dataset or "
+            f"retry with `--create` option for automatic dataset creation."
+        )
+    except (FileNotFoundError, git.exc.NoSuchPathError) as e:
+        message = "\n\t".join(urls)
+        raise errors.ParameterError(f"Could not find paths/URLs: \n\t{message}") from e

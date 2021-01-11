@@ -65,7 +65,14 @@ def list_datasets():
     return Command().command(_list_datasets).lock_dataset()
 
 
-def _create_dataset(client, name, title=None, description="", creators=None, keywords=None):
+def create_dataset():
+    """Return a command for creating an empty dataset in the current repo."""
+    command = Command().command(create_dataset_helper).lock_dataset()
+    return command.require_migration().with_commit(commit_only=DATASET_METADATA_PATHS)
+
+
+def create_dataset_helper(client, name, title=None, description="", creators=None, keywords=None):
+    """Create a dataset in the repository."""
     if not creators:
         creators = [Person.from_git(client.repo)]
     else:
@@ -78,12 +85,6 @@ def _create_dataset(client, name, title=None, description="", creators=None, key
     client.update_datasets_provenance(dataset)
 
     return dataset
-
-
-def create_dataset():
-    """Return a command for creating an empty dataset in the current repo."""
-    command = Command().command(_create_dataset).lock_dataset()
-    return command.require_migration().with_commit(commit_only=DATASET_METADATA_PATHS)
 
 
 def _edit_dataset(client, name, title, description, creators, keywords=None):
