@@ -155,6 +155,7 @@ install_requires = [
     "attrs>=19.3.0,<=20.2.0",
     "calamus>=0.3.6,<0.3.7",
     "click-completion>=0.5.0,<=0.5.3",
+    "click-option-group>=0.5.2,<0.6.0",
     "click>=7.0,<=7.1.2",
     "click-plugins==1.1.1",
     "cryptography>=3.2,<=3.2",

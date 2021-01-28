@@ -395,10 +395,14 @@ def test_renku_dataset_import_missing_lfs_objects(runner, project):
 @flaky(max_runs=10, min_passes=1)
 @pytest.mark.parametrize(
     "provider,params,output",
-    [("zenodo", [], "zenodo.org/deposit"), ("dataverse", ["--dataverse-name", "sdsc-test-dataverse"], "doi:")],
+    [
+        ("zenodo", [], "zenodo.org/deposit"),
+        ("dataverse", ["--dataverse-name", "sdsc-test-dataverse"], "doi:"),
+        ("olos", [], "sandbox.dlcm.ch/ingestion/preingest/deposits/"),
+    ],
 )
 def test_dataset_export_upload_file(
-    runner, project, tmpdir, client, zenodo_sandbox, dataverse_demo, provider, params, output
+    runner, project, tmpdir, client, zenodo_sandbox, dataverse_demo, olos_sandbox, provider, params, output
 ):
     """Test successful uploading of a file to Zenodo/Dataverse deposit."""
     result = runner.invoke(cli, ["dataset", "create", "my-dataset"])
@@ -433,10 +437,14 @@ def test_dataset_export_upload_file(
 @flaky(max_runs=10, min_passes=1)
 @pytest.mark.parametrize(
     "provider,params,output",
-    [("zenodo", [], "zenodo.org/deposit"), ("dataverse", ["--dataverse-name", "sdsc-test-dataverse"], "doi:")],
+    [
+        ("zenodo", [], "zenodo.org/deposit"),
+        ("dataverse", ["--dataverse-name", "sdsc-test-dataverse"], "doi:"),
+        ("olos", [], "sandbox.dlcm.ch/ingestion/preingest/deposits/"),
+    ],
 )
 def test_dataset_export_upload_tag(
-    runner, project, tmpdir, client, zenodo_sandbox, dataverse_demo, provider, params, output
+    runner, project, tmpdir, client, zenodo_sandbox, dataverse_demo, olos_sandbox, provider, params, output
 ):
     """Test successful uploading of a file to Zenodo/Dataverse deposit."""
     result = runner.invoke(cli, ["dataset", "create", "my-dataset"])
@@ -501,10 +509,14 @@ def test_dataset_export_upload_tag(
 @flaky(max_runs=10, min_passes=1)
 @pytest.mark.parametrize(
     "provider,params,output",
-    [("zenodo", [], "zenodo.org/deposit"), ("dataverse", ["--dataverse-name", "sdsc-test-dataverse"], "doi:")],
+    [
+        ("zenodo", [], "zenodo.org/deposit"),
+        ("dataverse", ["--dataverse-name", "sdsc-test-dataverse"], "doi:"),
+        ("olos", [], "sandbox.dlcm.ch/ingestion/preingest/deposits/"),
+    ],
 )
 def test_dataset_export_upload_multiple(
-    runner, project, tmpdir, client, zenodo_sandbox, dataverse_demo, provider, params, output
+    runner, project, tmpdir, client, zenodo_sandbox, dataverse_demo, olos_sandbox, provider, params, output
 ):
     """Test successful uploading of a files to Zenodo deposit."""
     result = runner.invoke(cli, ["dataset", "create", "my-dataset"])
