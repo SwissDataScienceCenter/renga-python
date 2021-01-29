@@ -1215,7 +1215,7 @@ def test_edit_datasets_view(svc_client_with_repo):
 @pytest.mark.integration
 @flaky(max_runs=10, min_passes=1)
 def test_edit_dataset_with_images(svc_client_with_repo):
-    """Create a new dataset with metadata."""
+    """Edit images of a dataset."""
     svc_client, headers, project_id, _ = svc_client_with_repo
 
     name = "{0}".format(uuid.uuid4().hex)
